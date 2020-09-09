@@ -1,6 +1,6 @@
 library(RJSONIO)
 library(gtools)
-key <- "AIzaSyD4J2p9jFwtmbi9V9VTOrGtZCzgxg5NcM0"
+key <- 
 strategy <- "desktop"
 #' Speed results for 1 URL
 #'
