@@ -1,0 +1,176 @@
+---
+title: "Pagespeed Api - Single Site"
+author: "Matt Rowse"
+date: "04/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load libraries
+library(httr)
+library(jsonlite)
+library(tidyverse)
+library(RSQLite)
+library(DBI)
+library(plotly)
+library(DT)
+
+# ensure responses are not automatically changed to factors
+options(stringsAsFactors = FALSE)
+# save key
+key <- ""
+
+# save v5 endpoint
+pagespeed <-  "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+
+# provide urls to check, separate by comma
+url1 <- c("https://edibleblooms.com.au")
+url2 <- c("https://mxstore.com.au")
+url3 <- c("https://shoppingexpress.com.au")
+url4 <- c("https://kgelectronic.com.au")
+url5 <- c("https://myer.com.au")
+url6 <- c("https://woolworths.com.au")
+url7 <- c("https://amazon.com.au")
+url8 <- c("https://ebay.com.au")
+url9 <- c("https://target.com.au")
+url10 <- c("https://catch.com.au")
+
+# desktop or mobile
+strategy <- "desktop"
+
+# query endpoint and save response data
+data1 <- GET(url = pagespeed,options(stringsAsFactors = FALSE), query = list(
+  url=url1, strategy = strategy, category = "performance", key=key
+), verbose())
+
+Sys.sleep(10)
+
+data2 <- GET(url = pagespeed, options(stringsAsFactors = FALSE),query = list(
+  url=url2, strategy = strategy, category = "performance", key=key
+), verbose())
+
+Sys.sleep(10)
+
+data3 <- GET(url = pagespeed, options(stringsAsFactors = FALSE),query = list(
+  url=url3, strategy = strategy, category = "performance", key=key
+), verbose())
+
+Sys.sleep(10)
+
+data4 <- GET(url = pagespeed, query = list(
+  url=url4, strategy = strategy, category = "performance", key=key
+), verbose())
+
+Sys.sleep(10)
+
+data5 <- GET(url = pagespeed, options(stringsAsFactors = FALSE),query = list(
+  url=url5, strategy = strategy, category = "performance", key=key
+), verbose())
+
+Sys.sleep(10)
+
+data6 <- GET(url = pagespeed,options(stringsAsFactors = FALSE), query = list(
+  url=url6, strategy = strategy, category = "performance", key=key
+), verbose())
+
+data7 <- GET(url = pagespeed, options(stringsAsFactors = FALSE),query = list(
+  url=url7, strategy = strategy, category = "performance", key=key
+), verbose())
+
+data8 <- GET(url = pagespeed,options(stringsAsFactors = FALSE), query = list(
+  url=url8, strategy = strategy, category = "performance", key=key
+), verbose())
+
+data9 <- GET(url = pagespeed,options(stringsAsFactors = FALSE), query = list(
+  url=url9, strategy = strategy, category = "performance", key=key
+), verbose())
+
+data10 <- GET(url = pagespeed,options(stringsAsFactors = FALSE), query = list(
+  url=url10, strategy = strategy, category = "performance", key=key
+), verbose())
+
+# parse respone
+parsed1 <- fromJSON(rawToChar(data1$content))
+parsed2 <- fromJSON(rawToChar(data2$content))
+parsed3 <- fromJSON(rawToChar(data3$content))
+parsed4 <- fromJSON(rawToChar(data4$content))
+parsed5 <- fromJSON(rawToChar(data5$content))
+parsed6 <- fromJSON(rawToChar(data6$content))
+parsed7 <- fromJSON(rawToChar(data7$content))
+parsed8 <- fromJSON(rawToChar(data8$content))
+parsed9 <- fromJSON(rawToChar(data9$content))
+parsed10 <- fromJSON(rawToChar(data10$content))
+
+# save response as dataframe
+metrics <- unlist(parsed1$loadingExperience) %>% 
+  as.data.frame()
+#original <- unlist(parsed$originLoadingExperience) %>%
+#  as.data.frame()
+#lighthouse <- unlist(parsed$lighthouseResult) %>% 
+#  as.data.frame()
+# initialise and save the results to a database
+# Get second site
+
+# unlist and add to colums data frame
+metrics2 <- unlist(parsed2$loadingExperience) 
+metrics3 <- unlist(parsed3$loadingExperience) 
+metrics4 <- unlist(parsed4$loadingExperience) 
+metrics5 <- unlist(parsed5$loadingExperience) 
+metrics6 <- unlist(parsed6$loadingExperience) 
+metrics7 <- unlist(parsed7$loadingExperience) 
+metrics8 <- unlist(parsed8$loadingExperience) 
+metrics9 <- unlist(parsed9$loadingExperience) 
+metrics10 <- unlist(parsed10$loadingExperience) 
+
+# combine results
+metrics <- metrics %>% cbind(metrics2)
+metrics <- metrics %>% cbind(metrics3) 
+metrics <- metrics %>% cbind(metrics4) 
+metrics <- metrics %>% cbind(metrics5) 
+metrics <- metrics %>% cbind(metrics6)
+metrics <- metrics %>% cbind(metrics7)
+metrics <- metrics %>% cbind(metrics8)
+metrics <- metrics %>% cbind(metrics9)
+metrics <- metrics %>% cbind(metrics10)
+
+# transpose table for database
+metrics <- as.data.frame(t(metrics))
+
+# transfer to numeric
+# metrics <- metrics %>% as.numeric()
+
+# # change to numeric
+metrics$metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile  <- as.double(as.character(metrics$metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile))
+# 
+# # change to numeric
+metrics$metrics.FIRST_INPUT_DELAY_MS.percentile <- as.double(as.character(metrics$metrics.FIRST_INPUT_DELAY_MS.percentile))
+
+# open and write table to db
+con <- dbConnect(SQLite(), ":memory:")
+dbWriteTable(con, "metrics", metrics)
+
+# select all information from small database
+query <- paste("select * from metrics")
+
+# create example plot base
+plot_data <- dbGetQuery(con, query) %>%
+  as.tibble() %>% ggplot(
+    aes(
+      metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile,
+      metrics.FIRST_INPUT_DELAY_MS.percentile,
+      colour = id
+    )
+  ) + geom_point() + theme(legend.position = "none") + ggtitle("Google Pagespeed API Insights") +
+  labs(x = "Largest Contentful Paint Percentile", y = "First Input Delay Percentile (TTI)")+
+  scale_x_log10()+
+  scale_y_log10()
+
+# print plot
+ggplotly(plot_data)
+
+# query db and print datatable
+dbGetQuery(con, query) %>%
+  as.tibble() %>% datatable()
+
+```
